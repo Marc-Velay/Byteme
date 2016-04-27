@@ -290,7 +290,7 @@ void Q3Player::create ( IrrlichtDevice *device, IQ3LevelMesh* mesh, ISceneNode *
 	keyMap[0].Action = EKA_MOVE_FORWARD;
 	keyMap[0].KeyCode = KEY_UP;
 	keyMap[1].Action = EKA_MOVE_FORWARD;
-	keyMap[1].KeyCode = KEY_KEY_W;
+	keyMap[1].KeyCode = KEY_KEY_Z;
 
 	keyMap[2].Action = EKA_MOVE_BACKWARD;
 	keyMap[2].KeyCode = KEY_DOWN;
@@ -300,7 +300,7 @@ void Q3Player::create ( IrrlichtDevice *device, IQ3LevelMesh* mesh, ISceneNode *
 	keyMap[4].Action = EKA_STRAFE_LEFT;
 	keyMap[4].KeyCode = KEY_LEFT;
 	keyMap[5].Action = EKA_STRAFE_LEFT;
-	keyMap[5].KeyCode = KEY_KEY_A;
+	keyMap[5].KeyCode = KEY_KEY_Q;
 
 	keyMap[6].Action = EKA_STRAFE_RIGHT;
 	keyMap[6].KeyCode = KEY_RIGHT;
@@ -308,10 +308,10 @@ void Q3Player::create ( IrrlichtDevice *device, IQ3LevelMesh* mesh, ISceneNode *
 	keyMap[7].KeyCode = KEY_KEY_D;
 
 	keyMap[8].Action = EKA_JUMP_UP;
-	keyMap[8].KeyCode = KEY_KEY_J;
+	keyMap[8].KeyCode = KEY_KEY_A;
 
 	keyMap[9].Action = EKA_CROUCH;
-	keyMap[9].KeyCode = KEY_KEY_C;
+	keyMap[9].KeyCode = KEY_KEY_X;
 
 	camera = smgr->addCameraSceneNodeFPS(0, 100.0f, 0.6f, -1, keyMap, 10, false, 0.6f);
 	camera->setName ( "First Person Camera" );
@@ -1672,7 +1672,7 @@ bool CQuake3EventHandler::OnEvent(const SEvent& eve)
 	}
 
 	// check if user presses the key C ( for crouch)
-	if ( eve.EventType == EET_KEY_INPUT_EVENT && eve.KeyInput.Key == KEY_KEY_C )
+	if ( eve.EventType == EET_KEY_INPUT_EVENT && eve.KeyInput.Key == KEY_KEY_X )
 	{
 		// crouch
 		ISceneNodeAnimatorCollisionResponse *anim = Player[0].cam ();
@@ -2028,7 +2028,7 @@ void CQuake3EventHandler::Animate()
 		IVideoDriver * driver = Game->Device->getVideoDriver();
 
 		IAttributes * attr = smgr->getParameters();
-#ifdef _IRR_SCENEMANAGER_DEBUG					
+#ifdef _IRR_SCENEMANAGER_DEBUG
 		swprintf ( msg, 128,
 			L"Q3 %s [%ls], FPS:%03d Tri:%.03fm Cull %d/%d nodes (%d,%d,%d)",
 			Game->CurrentMapName.c_str(),
@@ -2048,8 +2048,8 @@ swprintf ( msg, 128,
 			driver->getName(),
 			driver->getFPS (),
 			(f32) driver->getPrimitiveCountDrawn( 0 ) * ( 1.f / 1000000.f )
-			);		
-#endif		
+			);
+#endif
 		Game->Device->setWindowCaption( msg );
 
 		swprintf ( msg, 128,
