@@ -112,7 +112,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     By the way, that cool Quake 2 model called sydney was modelled
     by Brian Collins.
     */
-    IAnimatedMesh* mesh = smgr->getMesh("../../media/sydney.md2");
+    IAnimatedMesh* mesh = smgr->getMesh("../irrlicht-1.8.3/media/sydney.md2");
     IAnimatedMeshSceneNode* node = smgr->addAnimatedMeshSceneNode( mesh );
 
     /*
@@ -127,7 +127,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     {
         node->setMaterialFlag(EMF_LIGHTING, false);
         node->setFrameLoop(0, 310);
-        node->setMaterialTexture( 0, driver->getTexture("../../media/sydney.bmp") );
+        node->setMaterialTexture( 0, driver->getTexture("../irrlicht-1.8.3/media/sydney.bmp") );
     }
 
     /*
