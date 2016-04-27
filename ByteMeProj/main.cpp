@@ -1,35 +1,9 @@
-/*
-The program will show how to use the
-basics of the VideoDriver, the GUIEnvironment and the
-SceneManager.
 
-To use the engine, we will have to include the header file
-irrlicht.h, which can be found in the Irrlicht Engine SDK
-directory \include.
-*/
-#include <irrlicht.h>
-#include "wtypes.h"
 
-/*
-In the Irrlicht Engine, everything can be found in the namespace
-'irr'. So if you want to use a class of the engine, you have to
-write an irr:: before the name of the class. For example to use
-the IrrlichtDevice write: irr::IrrlichtDevice. To get rid of the
-irr:: in front of the name of every class, we tell the compiler
-that we use that namespace from now on, and we will not have to
-write that 'irr::'.
-*/
+#include "main.h"
+
+
 using namespace irr;
-
-/*
-There are 5 sub namespaces in the Irrlicht Engine. Take a look
-at them, you can read a detailed description of them in the
-documentation by clicking on the top menu item 'Namespace List'
-or using this link: http://irrlicht.sourceforge.net/docu/namespaces.html.
-Like the irr Namespace, we do not want these 5 sub namespaces now,
-to keep this example simple. Hence we tell the compiler again
-that we do not want always to write their names:
-*/
 using namespace core;
 using namespace scene;
 using namespace video;
@@ -37,13 +11,359 @@ using namespace io;
 using namespace gui;
 using namespace std;
 
-/*
-This is the main method. We can use void main() on every platform.
-On Windows platforms, we could also use the WinMain method
-if we would want to get rid of the console window, which pops up when
-starting a program with main(), but to keep this example simple,
-we use main().
-*/
+
+/*********************************************************************/
+void GameData::setDefault ()
+{
+	debugState = EDS_OFF;
+	gravityState = 1;
+	flyTroughState = 0;
+	wireFrame = 0;
+	guiActive = 1;
+	guiInputActive = 0;
+	GammaValue = 1.f;
+
+	// default deviceParam;
+
+	deviceParam.Fullscreen = true;
+	deviceParam.Bits = 24;
+	deviceParam.ZBufferBits = 16;
+	deviceParam.Vsync = false;
+	deviceParam.AntiAlias = false;
+
+	// default Quake3 loadParam
+	loadParam.defaultLightMapMaterial = EMT_LIGHTMAP;
+	loadParam.defaultModulate = EMFN_MODULATE_1X;
+	loadParam.defaultFilter = EMF_ANISOTROPIC_FILTER;
+	loadParam.verbose = 2;
+	loadParam.mergeShaderBuffer = 1;		// merge meshbuffers with same material
+	loadParam.cleanUnResolvedMeshes = 1;	// should unresolved meshes be cleaned. otherwise blue texture
+	loadParam.loadAllShaders = 1;			// load all scripts in the script directory
+	loadParam.loadSkyShader = 0;			// load sky Shader
+	loadParam.alpharef = 1;
+
+	sound = 0;
+
+	CurrentMapName = "";
+	CurrentArchiveList.clear ();
+
+
+	CurrentArchiveList.push_back ( StartupDir + "./media/" );
+
+	// Add the original quake3 files before you load your custom map
+	// Most mods are using the original shaders, models&items&weapons
+	CurrentArchiveList.push_back("/q/baseq3/");
+
+	CurrentArchiveList.push_back(StartupDir + "./media/map/map-20kdm2.pk3");
+}
+
+/*********************************************************************/
+s32 GameData::load ( const path &filename )
+{
+	if (!Device) return 0;
+
+	// the quake3 mesh loader can also handle *.shader and *.cfg file
+	IQ3LevelMesh* mesh = (IQ3LevelMesh*) Device->getSceneManager()->getMesh ( filename );
+	if (!mesh) return 0;
+
+	tQ3EntityList &entityList = mesh->getEntityList ();
+
+	stringc s;
+	u32 pos;
+
+	for ( u32 e = 0; e != entityList.size (); e++ )
+	{
+		//dumpShader ( s, &entityList[e], false );
+		//printf ( s.c_str () );
+
+		for ( u32 g = 0; g != entityList[e].getGroupSize (); g++ )
+		{
+			const SVarGroup *group = entityList[e].getGroup ( g );
+
+			for ( u32 index = 0; index < group->Variable.size (); index++ )
+			{
+				const SVariable &v = group->Variable[index];
+				pos = 0;
+				if ( v.name == "playerposition" )
+				{
+					PlayerPosition = getAsVector3df ( v.content, pos );
+				}
+				else
+				if ( v.name == "playerrotation" )
+				{
+					PlayerRotation = getAsVector3df ( v.content, pos );
+				}
+			}
+		}
+	}
+
+	return 1;
+}
+
+
+
+
+/*********************************************************************/
+s32 GameData::save ( const path &filename )
+{
+	//return 0;
+	if (!Device) return 0;
+
+	c8 buf[128];
+	u32 i;
+
+	// Store current Archive for restart
+	CurrentArchiveList.clear();
+	IFileSystem *fs = Device->getFileSystem();
+	for ( i = 0; i != fs->getFileArchiveCount(); ++i )
+	{
+		CurrentArchiveList.push_back ( fs->getFileArchive(i)->getFileList()->getPath() );
+	}
+
+	// Store Player Position and Rotation
+	ICameraSceneNode * camera = Device->getSceneManager()->getActiveCamera ();
+	if ( camera )
+	{
+		PlayerPosition = camera->getPosition ();
+		PlayerRotation = camera->getRotation ();
+	}
+
+	IWriteFile *file = fs->createAndWriteFile ( filename );
+	if (!file) return 0;
+
+	snprintf ( buf, 128, "playerposition %.f %.f %.f\nplayerrotation %.f %.f %.f\n",
+			PlayerPosition.X, PlayerPosition.Z, PlayerPosition.Y,
+			PlayerRotation.X, PlayerRotation.Z, PlayerRotation.Y);
+	file->write ( buf, (s32) strlen ( buf ) );
+	for ( i = 0; i != fs->getFileArchiveCount(); ++i )
+	{
+		snprintf ( buf, 128, "archive %s\n",stringc ( fs->getFileArchive(i)->getFileList()->getPath() ).c_str () );
+		file->write ( buf, (s32) strlen ( buf ) );
+	}
+
+	file->drop ();
+	return 1;
+}
+
+
+/*********************************************************************/
+struct Q3Player : public IAnimationEndCallBack
+{
+	Q3Player ()
+	: Device(0), MapParent(0), Mesh(0), WeaponNode(0), StartPositionCurrent(0)
+	{
+		animation[0] = 0;
+		memset(Anim, 0, sizeof(TimeFire)*4);
+	}
+
+	virtual void OnAnimationEnd(IAnimatedMeshSceneNode* node);
+
+	void create (	IrrlichtDevice *device,
+					IQ3LevelMesh* mesh,
+					ISceneNode *mapNode,
+					IMetaTriangleSelector *meta
+				);
+	void shutdown ();
+	void setAnim ( const c8 *name );
+	void respawn ();
+	void setpos ( const vector3df &pos, const vector3df& rotation );
+
+	ISceneNodeAnimatorCollisionResponse * cam() { return camCollisionResponse ( Device ); }
+
+	IrrlichtDevice *Device;
+	ISceneNode* MapParent;
+	IQ3LevelMesh* Mesh;
+	IAnimatedMeshSceneNode* WeaponNode;
+	s32 StartPositionCurrent;
+	TimeFire Anim[4];
+	c8 animation[64];
+	c8 buf[64];
+};
+
+/*********************************************************************/
+void Q3Player::shutdown ()
+{
+	setAnim ( 0 );
+
+	dropElement (WeaponNode);
+
+	if ( Device )
+	{
+		ICameraSceneNode* camera = Device->getSceneManager()->getActiveCamera();
+		dropElement ( camera );
+		Device = 0;
+	}
+
+	MapParent = 0;
+	Mesh = 0;
+}
+
+
+/*********************Playable char!!**********************************/
+void Q3Player::create ( IrrlichtDevice *device, IQ3LevelMesh* mesh, ISceneNode *mapNode, IMetaTriangleSelector *meta )
+{
+	setTimeFire ( Anim + 0, 200, FIRED );
+	setTimeFire ( Anim + 1, 5000 );
+
+	if (!device)
+		return;
+	// load FPS weapon to Camera
+	Device = device;
+	Mesh = mesh;
+	MapParent = mapNode;
+
+	ISceneManager *smgr = device->getSceneManager ();
+	IVideoDriver * driver = device->getVideoDriver();
+
+	ICameraSceneNode* camera = 0;
+
+	SKeyMap keyMap[10];
+	keyMap[0].Action = EKA_MOVE_FORWARD;
+	keyMap[0].KeyCode = KEY_UP;
+	keyMap[1].Action = EKA_MOVE_FORWARD;
+	keyMap[1].KeyCode = KEY_KEY_Z;
+
+	keyMap[2].Action = EKA_MOVE_BACKWARD;
+	keyMap[2].KeyCode = KEY_DOWN;
+	keyMap[3].Action = EKA_MOVE_BACKWARD;
+	keyMap[3].KeyCode = KEY_KEY_S;
+
+	keyMap[4].Action = EKA_STRAFE_LEFT;
+	keyMap[4].KeyCode = KEY_LEFT;
+	keyMap[5].Action = EKA_STRAFE_LEFT;
+	keyMap[5].KeyCode = KEY_KEY_Q;
+
+	keyMap[6].Action = EKA_STRAFE_RIGHT;
+	keyMap[6].KeyCode = KEY_RIGHT;
+	keyMap[7].Action = EKA_STRAFE_RIGHT;
+	keyMap[7].KeyCode = KEY_KEY_D;
+
+	keyMap[8].Action = EKA_JUMP_UP;
+	keyMap[8].KeyCode = KEY_SPACE;
+
+	keyMap[9].Action = respawn();
+	keyMap[9].KeyCode = KEY_KEY_P;
+
+
+	/**************************à remplacer par camera 3eme persone***************************/
+	camera = smgr->addCameraSceneNodeFPS(0, 100.0f, 0.6f, -1, keyMap, 10, false, 0.6f);
+	camera->setName ( "First Person Camera" );
+	//camera->setFOV ( 100.f * core::DEGTORAD );
+	camera->setFarValue( 20000.f );
+	/*********************************************************************/
+
+	IAnimatedMeshMD2* weaponMesh = (IAnimatedMeshMD2*) smgr->getMesh("gun.md2");
+	if ( 0 == weaponMesh )
+		return;
+
+	if ( weaponMesh->getMeshType() == EAMT_MD2 )
+	{
+		s32 count = weaponMesh->getAnimationCount();
+		for ( s32 i = 0; i != count; ++i )
+		{
+			snprintf ( buf, 64, "Animation: %s", weaponMesh->getAnimationName(i) );
+			device->getLogger()->log(buf, ELL_INFORMATION);
+		}
+	}
+
+	WeaponNode = smgr->addAnimatedMeshSceneNode(
+						weaponMesh,
+						smgr->getActiveCamera(),
+						10,
+						vector3df( 0, 0, 0),
+						vector3df(-90,-90,90)
+						);
+	WeaponNode->setMaterialFlag(EMF_LIGHTING, false);
+	WeaponNode->setMaterialTexture(0, driver->getTexture( "gun.jpg"));
+	WeaponNode->setLoopMode ( false );
+	WeaponNode->setName ( "tommi the gun man" );
+
+	//create a collision auto response animator
+	ISceneNodeAnimator* anim =
+		smgr->createCollisionResponseAnimator( meta, camera,
+			vector3df(30,45,30),
+			getGravity ( "earth" ),
+			vector3df(0,40,0),
+			0.0005f
+		);
+
+	camera->addAnimator( anim );
+	anim->drop();
+
+	if ( meta )
+	{
+		meta->drop ();
+	}
+
+	respawn ();
+	setAnim ( "idle" );
+}
+
+
+/*********************************************************************/
+void Q3Player::respawn ()
+{
+	if (!Device) return;
+	ICameraSceneNode* camera = Device->getSceneManager()->getActiveCamera();
+
+	Device->getLogger()->log( "respawn" );
+
+	if ( StartPositionCurrent >= Q3StartPosition (
+			Mesh, camera,StartPositionCurrent++,
+			cam ()->getEllipsoidTranslation() )
+		)
+	{
+		StartPositionCurrent = 0;
+	}
+}
+
+
+/*********************************************************************/
+void Q3Player::setpos ( const vector3df &pos, const vector3df &rotation )
+{
+	if (!Device) return;
+	Device->getLogger()->log( "setpos" );
+
+	ICameraSceneNode* camera = Device->getSceneManager()->getActiveCamera();
+	if ( camera )
+	{
+		camera->setPosition ( pos );
+		camera->setRotation ( rotation );
+		//! New. FPSCamera and animators catches reset on animate 0
+		camera->OnAnimate ( 0 );
+	}
+}
+
+
+/*********************************************************************/
+void Q3Player::setAnim ( const c8 *name )
+{
+	if ( name )
+	{
+		snprintf ( animation, 64, "%s", name );
+		if ( WeaponNode )
+		{
+			WeaponNode->setAnimationEndCallback ( this );
+			WeaponNode->setMD2Animation ( animation );
+		}
+	}
+	else
+	{
+		animation[0] = 0;
+		if ( WeaponNode )
+		{
+			WeaponNode->setAnimationEndCallback ( 0 );
+		}
+	}
+}
+
+/*********************************************************************/
+void Q3Player::OnAnimationEnd(IAnimatedMeshSceneNode* node)
+{
+	setAnim ( 0 );
+}
+
+/*********************************************************************/
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 
@@ -68,51 +388,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     eventReceiver: An object to receive events. We do not want to use this
        parameter here, and set it to 0.
     */
-    /*HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO info;
-    info.cbSize = sizeof(MONITORINFO);
-    GetMonitorInfo(monitor, &info);
-    int monitor_width = info.rcMonitor.right - info.rcMonitor.left;
-    int monitor_height = info.rcMonitor.bottom - info.rcMonitor.top;*/
 
     IrrlichtDevice *device =
         createDevice(EDT_OPENGL, dimension2d<u32>(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)), 16,
             true, false, false, 0);
 
-    /*
-    Set the caption of the window to some nice text. Note that there is
-    a 'L' in front of the string. The Irrlicht Engine uses wide character
-    strings when displaying text.
-    */
-    device->setWindowCaption(L"Hello World! - Irrlicht Engine Demo");
 
-    /*
-    Get a pointer to the video driver, the SceneManager and the
-    graphical user interface environment, so that
-    we do not always have to write device->getVideoDriver(),
-    device->getSceneManager() and device->getGUIEnvironment().
-    */
+    device->setWindowCaption(L"Byte me!");
+
     IVideoDriver* driver = device->getVideoDriver();
     ISceneManager* smgr = device->getSceneManager();
     IGUIEnvironment* guienv = device->getGUIEnvironment();
 
-    /*
-    We add a hello world label to the window, using the GUI environment.
-    */
+   /*
     guienv->addStaticText(L"Hello World! This is the Irrlicht Software renderer!",
         rect<int>(10,10,200,22), true);
-
-    /*
-    To display something interesting, we load a Quake 2 model
-    and display it. We only have to get the Mesh from the Scene
-    Manager (getMesh()) and add a SceneNode to display the mesh.
-    (addAnimatedMeshSceneNode()). Instead of writing the filename
-    sydney.md2, it would also be possible to load a Maya object file
-    (.obj), a complete Quake3 map (.bsp) or a Milshape file (.ms3d).
-    By the way, that cool Quake 2 model called sydney was modelled
-    by Brian Collins.
     */
-    IAnimatedMesh* mesh = smgr->getMesh("../irrlicht-1.8.3/media/sydney.md2");
+
+    IAnimatedMesh* mesh = smgr->getMesh("./media/images/sydney.md2");
     IAnimatedMeshSceneNode* node = smgr->addAnimatedMeshSceneNode( mesh );
 
     /*
@@ -136,12 +429,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     */
     smgr->addCameraSceneNode(0, vector3df(0,30,-40), vector3df(0,5,0));
 
-    /*
-    Ok, now we have set up the scene, lets draw everything:
-    We run the device in a while() loop, until the device does not
-    want to run any more. This would be when the user closed the window
-    or pressed ALT+F4 in windows.
-    */
     while(device->run())
     {
         /*
@@ -159,16 +446,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         driver->endScene();
     }
 
-    /*
-    After we are finished, we have to delete the Irrlicht Device
-    created before with createDevice(). In the Irrlicht Engine,
-    you will have to delete all objects you created with a method or
-    function which starts with 'create'. The object is simply deleted
-    by calling ->drop().
-    See the documentation at
-    http://irrlicht.sourceforge.net//docu/classirr_1_1IUnknown.html#a3
-    for more information.
-    */
+
     device->drop();
 
     return 0;
