@@ -8,6 +8,7 @@ irrlicht.h, which can be found in the Irrlicht Engine SDK
 directory \include.
 */
 #include <irrlicht.h>
+#include "wtypes.h"
 
 /*
 In the Irrlicht Engine, everything can be found in the namespace
@@ -34,6 +35,7 @@ using namespace scene;
 using namespace video;
 using namespace io;
 using namespace gui;
+using namespace std;
 
 /*
 This is the main method. We can use void main() on every platform.
@@ -42,8 +44,9 @@ if we would want to get rid of the console window, which pops up when
 starting a program with main(), but to keep this example simple,
 we use main().
 */
-int main(int argc, char** argv)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
+
     /*
     The most important function of the engine is the 'createDevice'
     function. The Irrlicht Device can be created with it, which is the
@@ -65,10 +68,16 @@ int main(int argc, char** argv)
     eventReceiver: An object to receive events. We do not want to use this
        parameter here, and set it to 0.
     */
+    /*HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO info;
+    info.cbSize = sizeof(MONITORINFO);
+    GetMonitorInfo(monitor, &info);
+    int monitor_width = info.rcMonitor.right - info.rcMonitor.left;
+    int monitor_height = info.rcMonitor.bottom - info.rcMonitor.top;*/
 
     IrrlichtDevice *device =
-        createDevice(EDT_SOFTWARE, dimension2d<u32>(640, 480), 16,
-            false, false, false, 0);
+        createDevice(EDT_OPENGL, dimension2d<u32>(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)), 16,
+            true, false, false, 0);
 
     /*
     Set the caption of the window to some nice text. Note that there is
