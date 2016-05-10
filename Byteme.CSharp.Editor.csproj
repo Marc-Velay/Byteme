@@ -5,7 +5,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProductVersion>10.0.20506</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{F5725A78-8FB4-17F3-0E93-D3DD05CA029E}</ProjectGuid>
+    <ProjectGuid>{DCEF33B1-1A91-1D96-A399-0BC42285D367}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AssemblyName>Assembly-CSharp-Editor</AssemblyName>
     <FileAlignment>512</FileAlignment>
@@ -82,6 +82,9 @@
     <Reference Include="UnityEditor.Graphs">
       <HintPath>Library\UnityAssemblies\UnityEditor.Graphs.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEditor.Android.Extensions">
+      <HintPath>Library\UnityAssemblies\UnityEditor.Android.Extensions.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEditor.WindowsStandalone.Extensions">
       <HintPath>Library\UnityAssemblies\UnityEditor.WindowsStandalone.Extensions.dll</HintPath>
     </Reference>
@@ -117,9 +120,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="test maps.CSharp.csproj">
-      <Project>{5210753E-809D-8ABD-5127-FBFA9A1CF314}</Project>
-      <Name>test maps.CSharp</Name>
+    <ProjectReference Include="Byteme.CSharp.csproj">
+      <Project>{1D914E97-922E-A354-8F9E-1BBE596FD5FF}</Project>
+      <Name>Byteme.CSharp</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
